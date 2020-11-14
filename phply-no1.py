@@ -566,8 +566,8 @@ class FilteredLexer(object):
 full_lexer = lex.lex()
 
 data = '<?php //php 7.2.24\n'
-data += '$num1=10;'
-data += '$num2=20;'
+data += 'PRINT "Hello, world! \n";'
+data += 'ECHO "Welcome ";\n'
 data += '?>'
 
 full_lexer.input(data)
