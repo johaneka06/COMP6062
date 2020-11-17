@@ -62,10 +62,6 @@ tokens = reserved + unparsed + (
     'LPAREN', 'RPAREN', 'LBRACKET', 'RBRACKET', 'LBRACE', 'RBRACE', 'DOLLAR',
     'COMMA', 'CONCAT', 'QUESTION', 'COLON', 'SEMI', 'AT', 'NS_SEPARATOR',
 
-    # Casts
-    'ARRAY_CAST', 'BINARY_CAST', 'BOOL_CAST', 'DOUBLE_CAST', 'INT_CAST',
-    'OBJECT_CAST', 'STRING_CAST', 'UNSET_CAST',
-
     # Escaping from HTML
     'INLINE_HTML',
 
@@ -177,16 +173,6 @@ def t_php_RBRACE(t):
     r'\}'
     t.lexer.pop_state()
     return t
-
-# Casts
-t_php_ARRAY_CAST           = r'\([ \t]*[Aa][Rr][Rr][Aa][Yy][ \t]*\)'
-t_php_BINARY_CAST          = r'\([ \t]*[Bb][Ii][Nn][Aa][Rr][Yy][ \t]*\)'
-t_php_BOOL_CAST            = r'\([ \t]*[Bb][Oo][Oo][Ll]([Ee][Aa][Nn])?[ \t]*\)'
-t_php_DOUBLE_CAST          = r'\([ \t]*([Rr][Ee][Aa][Ll]|[Dd][Oo][Uu][Bb][Ll][Ee]|[Ff][Ll][Oo][Aa][Tt])[ \t]*\)'
-t_php_INT_CAST             = r'\([ \t]*[Ii][Nn][Tt]([Ee][Gg][Ee][Rr])?[ \t]*\)'
-t_php_OBJECT_CAST          = r'\([ \t]*[Oo][Bb][Jj][Ee][Cc][Tt][ \t]*\)'
-t_php_STRING_CAST          = r'\([ \t]*[Ss][Tt][Rr][Ii][Nn][Gg][ \t]*\)'
-t_php_UNSET_CAST           = r'\([ \t]*[Uu][Nn][Ss][Ee][Tt][ \t]*\)'
 
 # Comments
 
@@ -476,92 +462,6 @@ def peek(lexer):
     except IndexError:
         return ''
 
-class FilteredLexer(object):
-    def __init__(self, lexer):
-        self.lexer = lexer
-        self.last_token = None
-
-    @property
-    def lineno(self):
-        return self.lexer.lineno
-
-    @lineno.setter
-    def lineno(self, value):
-        self.lexer.lineno = value
-
-    @property
-    def lexpos(self):
-        return self.lexer.lexpos
-
-    @lexpos.setter
-    def lexpos(self, value):
-        self.lexer.lexpos = value
-
-    def clone(self):
-        return FilteredLexer(self.lexer.clone())
-
-    def current_state(self):
-        return self.lexer.current_state()
-
-    def input(self, input):
-        self.lexer.input(input)
-
-    def next_lexer_token(self):
-        """Return next lexer token.
-        Can be useful to customize parser behavior without need to touch
-        parser code in the token method."""
-        return self.lexer.token()
-
-    def token(self):
-        t = self.next_lexer_token()
-
-        # Filter out tokens that the parser is not expecting.
-        while t and t.type in unparsed:
-
-            # Skip over open tags, but keep track of when we see them.
-            if t.type == 'OPEN_TAG':
-                if self.last_token and self.last_token.type == 'SEMI':
-                    # Rewrite ?><?php as a semicolon.
-                    t.type = 'SEMI'
-                    t.value = ';'
-                    break
-                self.last_token = t
-                t = self.next_lexer_token()
-                continue
-
-            # Rewrite <?= to yield an "echo" statement.
-            if t.type == 'OPEN_TAG_WITH_ECHO':
-                t.type = 'ECHO'
-                break
-
-            # Insert semicolons in place of close tags where necessary.
-            if t.type == 'CLOSE_TAG':
-                if self.last_token and \
-                       self.last_token.type in ('OPEN_TAG', 'SEMI', 'COLON',
-                                                'LBRACE', 'RBRACE'):
-                    # Dont insert semicolons after these tokens.
-                    pass
-                else:
-                    # Rewrite close tag as a semicolon.
-                    t.type = 'SEMI'
-                    break
-
-            t = self.next_lexer_token()
-
-        self.last_token = t
-        return t
-
-    # Iterator interface
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        t = self.token()
-        if t is None:
-            raise StopIteration
-        return t
-
-    __next__ = next
 
 full_lexer = lex.lex()
 
